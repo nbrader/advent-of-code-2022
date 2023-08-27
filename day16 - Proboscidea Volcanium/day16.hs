@@ -241,12 +241,12 @@ pathPressureReleased duration path = sum [(duration-time)*flow | (label,flow,tim
 
 day1Part1SolutionPath = [("AA",0,0),("DY",23,3),("HF",17,6),("RC",14,9),("XJ",24,12),("DP",18,16),("RU",16,21),("KG",25,25),("EF",22,28),("END",0,30)]
 
-day1Part2AlmostSolutionPath1, day1Part2AlmostSolutionPath2 :: [(String,Int,Int)]
-day1Part2AlmostSolutionPath1 = [("AA",0,0),("DY",23,3),("HF",17,6),("CF",20,9),("XJ",24,16),("DP",18,20),("RU",3,25),("END",0,26)]
-day1Part2AlmostSolutionPath2 = [("AA",0,0),("KG",25,8),("EF",22,11),("AH",12,14),("OY",7,18),("VQ",9,22),("END",0,26)]
+day1Part2SolutionPath1, day1Part2SolutionPath2 :: [(String,Int,Int)]
+day1Part2SolutionPath1 = [("AA",0,0),("DY",23,3),("HF",17,6),("CF",20,9),("RC",14,14),("XJ",24,17),("DP",18,21),("VG",3,24),("END",0,26)]
+day1Part2SolutionPath2 = [("AA",0,0),("RU",16,5),("KG",25,9),("EF",22,12),("AH",12,15),("XE",11,19),("END",0,26)]
 
 day1Part1Solution = pathPressureReleased 30 day1Part1SolutionPath
-day1Part2AlmostSolution = pathPressureReleased 26 day1Part2AlmostSolutionPath1 + pathPressureReleased 26 day1Part2AlmostSolutionPath2
+day1Part2Solution = pathPressureReleased 26 day1Part2SolutionPath1 + pathPressureReleased 26 day1Part2SolutionPath2
 
 -- ghci> manualPathGreen + manualPathRed
 -- 2881
