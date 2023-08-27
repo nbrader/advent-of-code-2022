@@ -35,7 +35,6 @@ import Debug.Trace (trace)
 import Control.Monad (guard, forM_)
 import Data.List
 import Data.Maybe
-import Algorithm.Search
 import Control.Monad.RWS.Strict
 import Data.Ord
 import Data.Function
@@ -57,21 +56,20 @@ day16part1 = do
         valves = map readValve lines
     let nonBlockedValves = [(name,flow,adjNames) | (name,flow,adjNames) <- valves, flow /= 0]
     let nonBlockedNames = [name | (name,flow,adjNames) <- nonBlockedValves]
-    let bigGraph = Map.fromList [(name,adjNames) | (name,flow,adjNames) <- valves]
+    let bigGraph = Map.fromList [(name, S.fromList adjNames) | (name,flow,adjNames) <- valves]
     
     -- first calculate shortest paths between all non-blocked valves and use it to make a smaller graph
-    let bigGraphNext :: String -> [String]
-        bigGraphNext v = fromMaybe [] $ Map.lookup v bigGraph
-    let bigGraphCost v0 v1 = 1
+    let (shortestLengths, treePrevs) = getShortestPaths bigGraph
     let initial = "AA"
     
     let bestBigGraphPaths = do
-            v1 <- "AA":nonBlockedNames
+            v1 <- "AA" : nonBlockedNames
             v2 <- nonBlockedNames
             guard $ v1 /= v2
             
-            let Just best = dijkstra bigGraphNext bigGraphCost (==v2) v1
-            return ((v1,v2),best)
+            let bestPath = getShortestPath v1 v2 treePrevs
+            let bestPathLength = fromJust $ fromJust $ lookupNested v1 v2 shortestLengths
+            return ((v1, v2), (bestPathLength, bestPath))
     
     let initialEvent = (initial,0)
     
