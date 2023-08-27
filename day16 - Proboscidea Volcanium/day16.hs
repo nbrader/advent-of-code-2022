@@ -1,5 +1,5 @@
 #!/usr/bin/env stack
--- stack --resolver lts-20.5 ghci --package split-0.2.3.5 --package mtl-2.2.2 --package containers-0.6.5.1 --package strict-0.4.0.1 --package search-algorithms-0.3.2
+-- stack --resolver lts-21.9 ghci --package regex-tdfa --package containers --package split --package mtl --package strict --package search-algorithms
 ------------------------------------------
 ------------------------------------------
 ----  Day 16:  Proboscidea Volcanium  ----
@@ -7,7 +7,7 @@
 ------------------------------------------
 {-
     To build, run the following shell command in this directory:
-        stack --resolver lts-20.5 ghc --package split-0.2.3.5 --package mtl-2.2.2 --package containers-0.6.5.1 --package strict-0.4.0.1 --package search-algorithms-0.3.2 -- '.\day16.hs' -O2
+        stack --resolver lts-21.9 ghc --package regex-tdfa --package containers --package split --package mtl --package strict --package search-algorithms -- '.\day16.hs' -O2
 -}
 
 ------------
@@ -24,21 +24,22 @@
 -- Imports --
 -------------
 import qualified Data.Map.Strict as Map
-import Data.Map.Strict hiding (filter, map)
+import Data.Map.Strict hiding (filter, map, drop, foldl')
 import Data.Map.Strict (Map, (!))
 import Data.Set (Set)
-import Data.Set as S hiding (map, foldl', null, filter)
+import Data.Set as S hiding (map, foldl', null, filter, drop)
 import Data.List.Split (splitOn)
 import Prelude hiding (readFile)
 import System.IO.Strict (readFile)
 import Debug.Trace (trace)
-import Control.Monad (guard)
+import Control.Monad (guard, forM_)
 import Data.List
 import Data.Maybe
 import Algorithm.Search
 import Control.Monad.RWS.Strict
 import Data.Ord
 import Data.Function
+import Text.Regex.TDFA (getAllTextMatches, (=~), AllTextMatches)
 
 
 -------------
@@ -133,21 +134,20 @@ day16part2 = do
         valves = map readValve lines
     let nonBlockedValves = [(name,flow,adjNames) | (name,flow,adjNames) <- valves, flow /= 0]
     let nonBlockedNames = [name | (name,flow,adjNames) <- nonBlockedValves]
-    let bigGraph = Map.fromList [(name,adjNames) | (name,flow,adjNames) <- valves]
+    let bigGraph = Map.fromList [(name, S.fromList adjNames) | (name,flow,adjNames) <- valves]
     
     -- first calculate shortest paths between all non-blocked valves and use it to make a smaller graph
-    let bigGraphNext :: String -> [String]
-        bigGraphNext v = fromMaybe [] $ Map.lookup v bigGraph
-    let bigGraphCost v0 v1 = 1
+    let (shortestLengths, treePrevs) = getShortestPaths bigGraph
     let initial = "AA"
     
     let bestBigGraphPaths = do
-            v1 <- "AA":nonBlockedNames
+            v1 <- "AA" : nonBlockedNames
             v2 <- nonBlockedNames
             guard $ v1 /= v2
             
-            let Just best = dijkstra bigGraphNext bigGraphCost (==v2) v1
-            return ((v1,v2),best)
+            let bestPath = getShortestPath v1 v2 treePrevs
+            let bestPathLength = fromJust $ fromJust $ lookupNested v1 v2 shortestLengths
+            return ((v1, v2), (bestPathLength, bestPath))
     
     let initialEvent = (initial,0)
     
@@ -360,3 +360,69 @@ readValve inStr = (name,flow,adjNames)
         adjNames = splitOn ", " adjNamesStr
 
 eventNodeLabel (v,time) = v ++ ":" ++ show time
+
+type Graph = Map.Map String (S.Set String)
+type ShortestLengths = Map.Map String (Map.Map String (Maybe Int))
+type TreePrevs = Map.Map String (Map.Map String (Maybe String))
+
+lookupNested :: String -> String -> Map.Map String (Map.Map String a) -> Maybe a
+lookupNested outerKey innerKey m = do
+  innerMap <- Map.lookup outerKey m
+  Map.lookup innerKey innerMap
+
+getGraphFromFile :: FilePath -> IO Graph
+getGraphFromFile inputFilePath = do
+    content <- readFile inputFilePath
+    let linesInfos = map (getAllTextMatches . (=~ "[A-Z][A-Z]|\\d+")) (lines content)
+    return $ Map.fromList [(head x, S.fromList (drop 2 x)) | x <- linesInfos]
+
+-- getShortestPathLengths uses Floyd–Warshall algorithm
+getShortestPathLengths :: Graph -> ShortestLengths
+getShortestPathLengths graph = foldl' updateLengths initialLengths [(mid, src, dst) | mid <- keys, src <- keys, dst <- keys]
+  where
+    keys = Map.keys graph
+    initialLengths = Map.fromList [(x, Map.fromList [(y, if y `S.member` (fromJust (Map.lookup x graph)) then Just 1 else Nothing) | y <- keys]) | x <- keys]
+    updateLengths acc (mid, src, dst) =
+      let srcToMid = (acc Map.! src) Map.! mid
+          midToDst = (acc Map.! mid) Map.! dst
+          srcToDst = (acc Map.! src) Map.! dst
+          candidateLength = (+) <$> srcToMid <*> midToDst
+      in case candidateLength of
+           Just cl -> if maybe True (cl <) srcToDst
+                      then Map.adjust (\m -> Map.adjust (const candidateLength) dst m) src acc
+                      else acc
+           Nothing -> acc
+
+-- getShortestPaths uses Floyd–Warshall algorithm
+getShortestPaths :: Graph -> (ShortestLengths, TreePrevs)
+getShortestPaths graph = foldl' updatePaths (initialLengths, initialPrevs) [(mid, src, dst) | mid <- keys, src <- keys, dst <- keys]
+  where
+    keys = Map.keys graph
+    initialLengths = Map.fromList [(x, Map.fromList [(y, if y `S.member` (fromJust (Map.lookup x graph)) then Just 1 else Nothing) | y <- keys]) | x <- keys]
+    initialPrevs = Map.fromList [(x, Map.fromList [(y, if y `S.member` (fromJust (Map.lookup x graph)) then Just x else Nothing) | y <- keys]) | x <- keys]
+    updatePaths (lengths, prevs) (mid, src, dst) =
+      let srcToMid = (lengths Map.! src) Map.! mid
+          midToDst = (lengths Map.! mid) Map.! dst
+          srcToDst = (lengths Map.! src) Map.! dst
+          candidateLength = (+) <$> srcToMid <*> midToDst
+      in case candidateLength of
+           Just cl -> if maybe True (cl <) srcToDst
+                      then (Map.adjust (\m -> Map.adjust (const candidateLength) dst m) src lengths,
+                            Map.adjust (\m -> Map.adjust (const (prevs Map.! mid Map.! dst)) dst m) src prevs)
+                      else (lengths, prevs)
+           Nothing -> (lengths, prevs)
+
+getShortestPath :: String -> String -> TreePrevs -> [String]
+getShortestPath src dst treePrevs =
+  if isNothing (treePrevs Map.! src Map.! dst)
+  then []
+  else let Just v = treePrevs Map.! src Map.! dst
+           go v' = if v' == src then [src] else v' : go (fromJust (treePrevs Map.! src Map.! v'))
+       in reverse (go v)
+
+-- main :: IO ()
+-- main = do
+  -- graph <- getGraphFromFile "day16 (data).csv"
+  -- let (shortestLengths, treePrevs) = getShortestPaths graph
+  -- forM_ [(src, dst) | src <- Map.keys graph, dst <- Map.keys graph] $ \(src, dst) ->
+    -- putStrLn $ "src: " ++ src ++ ", dst: " ++ dst ++ ", path: " ++ show (getShortestPath src dst treePrevs)
