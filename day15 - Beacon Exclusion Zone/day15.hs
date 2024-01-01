@@ -168,7 +168,7 @@ addRectBodge (x0,y0,x1,y1) = addRect (x0-1,y0-1,x1,y1)
 emptyBodge (x0,y0,x1,y1) = Empty (x0-1,y0-1,x1,y1)
 
 inQuadTree :: Point -> QuadTree -> Bool
-inQuadTree (x,y) (Empty (x0,y0,x1,y1)) = (x0 == x || x == x1) && (y0 == y && y == y1)
+inQuadTree (x,y) (Empty (x0,y0,x1,y1)) = (x0 == x || x == x1) && (y0 == y && y == y1) -- Shouldn't this be (y0 == y || y == y1)?
 inQuadTree (x,y) Full  = True
 inQuadTree (x,y) (Branch xP yP tl tr bl br)
     | x <= xP && y <= yP = inQuadTree (x,y) tl
