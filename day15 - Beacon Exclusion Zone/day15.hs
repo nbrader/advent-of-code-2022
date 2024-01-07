@@ -102,7 +102,7 @@ combine (Intervals xs) (Intervals ys) = Intervals . map fst . filter ((/= 0) . s
 
 inspectedRow = 10
 
-readSensor :: String -> Sensor 
+readSensor :: String -> Sensor
 readSensor inStr = ((sX,sY),(bX,bY))
   where (sensorXStr,afterSensorXStr) = break (==',') (drop (length "Sensor at x="             ) $ inStr)
         (sensorYStr,afterSensorYStr) = break (==':') (drop (length ", y="                     ) $ afterSensorXStr)
